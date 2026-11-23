@@ -217,6 +217,8 @@ footer.foot .m{color:var(--yellow);font:700 1rem var(--head);margin-bottom:6px}
 .gate{max-width:560px;margin:80px auto;text-align:center;display:grid;gap:14px;justify-items:center}
 .adm-sel{display:none}
 .membership-card{max-width:760px}
+.membership-card>h3{margin-bottom:8px}
+.membership-card>p{color:var(--muted);margin-bottom:6px}
 .membership-form{display:grid;gap:16px;margin-top:18px}
 .membership-form .two{grid-template-columns:1fr 1fr}
 .membership-form input,.membership-form textarea{width:100%;font:400 1rem var(--body);color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
@@ -365,6 +367,18 @@ function siteHTML(){
 function adnPanel(){var x=(DATA.adn||[])[adnIdx];return x?'<h3>'+esc(x.word)+'</h3><p>'+esc(x.text)+'</p>':''}
 
 function bindSite(root){
+  root.addEventListener('click',function(e){
+    var link=e.target.closest('a[href^="#devino-membru"]');
+    if(!link)return;
+    var section=document.getElementById('devino-membru');
+    if(section){
+      e.preventDefault();
+      section.scrollIntoView({behavior:'smooth',block:'start'});
+      history.replaceState(null,'','#devino-membru');
+      var first=document.getElementById('memberFirstName');
+      if(first)setTimeout(function(){first.focus({preventScroll:true})},450);
+    }
+  });
   root.addEventListener('submit',async function(e){
     if(e.target.id!== 'membershipForm')return;
     e.preventDefault();
