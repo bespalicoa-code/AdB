@@ -216,6 +216,20 @@ footer.foot .m{color:var(--yellow);font:700 1rem var(--head);margin-bottom:6px}
 .note{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:14px 18px;font-size:.95rem;color:var(--muted)}
 .gate{max-width:560px;margin:80px auto;text-align:center;display:grid;gap:14px;justify-items:center}
 .adm-sel{display:none}
+.membership-card{max-width:760px}
+.membership-form{display:grid;gap:16px;margin-top:18px}
+.membership-form .two{grid-template-columns:1fr 1fr}
+.membership-form input,.membership-form textarea{width:100%;font:400 1rem var(--body);color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.membership-form textarea{min-height:110px;resize:vertical}
+.consent{display:flex;gap:10px;align-items:flex-start;font-size:.95rem;color:var(--muted)}
+.consent input{width:auto;margin-top:5px}
+.membership-status{min-height:24px;font-size:.95rem;color:var(--muted)}
+.membership-status.success{color:#16794b}
+.membership-status.error{color:var(--red)}
+.application-list{display:grid;gap:14px}
+.application-card{border:1px solid var(--line);border-radius:10px;padding:18px;background:var(--surface);display:grid;gap:8px}
+.application-card .meta{font-size:.88rem;color:var(--muted)}
+@media (max-width:640px){.membership-form .two{grid-template-columns:1fr}}
 @media (max-width:860px){
   .adm-body{grid-template-columns:1fr;gap:20px;padding-block:20px 60px}
   .adm-nav{display:none}
@@ -239,6 +253,7 @@ window.FIREBASE_CONFIG = {
   measurementId: "G-D6GBKZRRSM"
 };
 window.ADB_OWNER_EMAIL = "bespalicoa@gmail.com";
+window.ADB_PUBLISH_WORKER = "";
 </script>
 <script id="app-js">(function(){
 'use strict';
@@ -315,10 +330,9 @@ function siteHTML(){
     return '<div class="person"><div class="avatar" '+(p.photo?'':'aria-hidden="true"')+'>'+(p.photo?pic(p.photo,'',p.name):esc(initials(p.name)))+'</div><div><h3>'+esc(p.name)+'</h3><div class="role">'+esc(p.role)+'</div>'+(p.text?'<p>'+esc(p.text)+'</p>':'')
       +((p.members||[]).filter(Boolean).length?'<div class="names">'+p.members.filter(Boolean).map(function(n){return '<span>'+esc(n)+'</span>'}).join('')+'</div>':'')+'</div></div>'}).join('')+'</div>');
   // membru
-  var fu=url(m.formUrl);
   h+=sec('devino-membru','alt',sh('Devino membru')+'<div class="two"><div><h3 class="sub">Ca membru al Asociației</h3>'+checks(m.benefits)+'</div><div><h3 class="sub">Responsabilitățile membrilor</h3>'+checks(m.duties)+'</div></div>'
     +'<div style="margin-top:48px;display:grid;gap:16px"><h3 class="sub">Cum te poți implica?</h3><ul class="chips">'+(m.involve||[]).filter(Boolean).map(function(x){return '<li>'+esc(x)+'</li>'}).join('')+'</ul></div>'
-    +'<div class="card" style="margin-top:36px;max-width:640px"><h3>Formular online de aderare</h3><p>Completează formularul și te contactăm.</p><div class="actions" style="margin-top:8px">'+(fu?'<a class="btn red" href="'+esc(fu)+'" target="_blank" rel="noopener">Completează formularul</a>':'<span class="btn red" style="opacity:.55;cursor:default">Formularul va fi disponibil în curând</span>')+'</div></div>');
+    +'<div class="card membership-card" style="margin-top:36px"><h3>Formular de aderare</h3><p>Completează datele și te vom contacta.</p><form id="membershipForm" class="membership-form"><div class="two"><div class="fld"><label for="memberFirstName">Prenume *</label><input id="memberFirstName" name="firstName" required maxlength="80"></div><div class="fld"><label for="memberLastName">Nume *</label><input id="memberLastName" name="lastName" required maxlength="80"></div></div><div class="two"><div class="fld"><label for="memberPhone">Număr de telefon *</label><input id="memberPhone" name="phone" type="tel" required maxlength="30"></div><div class="fld"><label for="memberEmail">Adresa de e-mail *</label><input id="memberEmail" name="email" type="email" required maxlength="120"></div></div><div class="two"><div class="fld"><label for="memberBirth">Data nașterii</label><input id="memberBirth" name="birthDate" type="date"></div><div class="fld"><label for="memberLocality">Localitatea *</label><input id="memberLocality" name="locality" required maxlength="120"></div></div><div class="fld"><label for="memberAddress">Adresa</label><input id="memberAddress" name="address" maxlength="180"></div><div class="fld"><label for="memberMotivation">De ce vrei să devii membru?</label><textarea id="memberMotivation" name="motivation" maxlength="1500"></textarea></div><label class="consent"><input type="checkbox" name="consent" required><span>Sunt de acord ca datele mele să fie folosite pentru a mă contacta în legătură cu aderarea.</span></label><p id="membershipStatus" class="membership-status" role="status"></p><button class="btn red" type="submit">Trimite cererea</button></form></div>');
   // diaspora
   var di=D.diaspora;
   h+=sec('diaspora','',sh('Diaspora călărășeană',di.intro)
@@ -351,6 +365,39 @@ function siteHTML(){
 function adnPanel(){var x=(DATA.adn||[])[adnIdx];return x?'<h3>'+esc(x.word)+'</h3><p>'+esc(x.text)+'</p>':''}
 
 function bindSite(root){
+  root.addEventListener('submit',async function(e){
+    if(e.target.id!== 'membershipForm')return;
+    e.preventDefault();
+    var form=e.target,status=$('#membershipStatus',root),button=form.querySelector('button[type=submit]');
+    if(!adbDb){status.textContent='Cererea nu poate fi trimisă momentan.';status.className='membership-status error';return}
+    var fd=new FormData(form);
+    var data={
+      firstName:String(fd.get('firstName')||'').trim(),
+      lastName:String(fd.get('lastName')||'').trim(),
+      phone:String(fd.get('phone')||'').trim(),
+      email:String(fd.get('email')||'').trim(),
+      birthDate:String(fd.get('birthDate')||'').trim(),
+      locality:String(fd.get('locality')||'').trim(),
+      address:String(fd.get('address')||'').trim(),
+      motivation:String(fd.get('motivation')||'').trim(),
+      consent:true,
+      status:'new',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    };
+    button.disabled=true;status.textContent='Se trimite cererea…';status.className='membership-status';
+    try{
+      await adbDb.collection('membershipApplications').add(data);
+      form.reset();
+      status.textContent='Cererea a fost trimisă. Îți vom răspunde în curând.';
+      status.className='membership-status success';
+    }catch(err){
+      console.error(err);
+      status.textContent='Cererea nu a putut fi trimisă. Încearcă din nou.';
+      status.className='membership-status error';
+    }finally{
+      button.disabled=false;
+    }
+  });
   root.addEventListener('click',function(e){
     var t=e.target.closest('button,a');if(!t)return;
     if(t.id==='menuBtn'){var n=$('#nav',root),o=n.classList.toggle('open');t.setAttribute('aria-expanded',o);return}
@@ -474,7 +521,8 @@ var SCHEMA=[
  {id:'team',label:'Echipa',hint:'Membrii echipei, în ordinea în care apar pe site.',fields:[
   {t:'items',k:'team',noun:'Persoană',title:'name',blank:{name:'',role:'',text:'',members:[]},item:[{t:'image',k:'photo',l:'Fotografie (opțional)'},{t:'text',k:'name',l:'Nume'},{t:'text',k:'role',l:'Funcție'},{t:'area',k:'text',l:'Descriere'},{t:'strings',k:'members',l:'Membri (pentru Consiliu)',hint:'Lasă gol pentru o singură persoană.'}]}]},
  {id:'membership',label:'Devino membru',hint:'Beneficii, responsabilități și formularul de aderare.',fields:[
-  {t:'group',k:'membership',l:'Aderare',fields:[{t:'strings',k:'benefits',l:'Ca membru al Asociației'},{t:'strings',k:'duties',l:'Responsabilitățile membrilor'},{t:'strings',k:'involve',l:'Cum te poți implica'},{t:'text',k:'formUrl',l:'Link către formularul Google Forms'}]}]},
+  {t:'group',k:'membership',l:'Aderare',fields:[{t:'strings',k:'benefits',l:'Ca membru al Asociației'},{t:'strings',k:'duties',l:'Responsabilitățile membrilor'},{t:'strings',k:'involve',l:'Cum te poți implica'}]}]},
+ {id:'membershipApplications',label:'Cereri de aderare',hint:'Cereri trimise prin formularul „Devino membru”.',fields:[]},
  {id:'diaspora',label:'Diaspora',hint:'Țările și orașele unde locuiesc călărășeni și ambasadorii Călărașiului.',fields:[
   {t:'group',k:'diaspora',l:'Diaspora călărășeană',fields:[{t:'area',k:'intro',l:'Text de prezentare'},
    {t:'items',k:'countries',l:'Harta diasporei',noun:'Țară',title:'country',blank:{country:'',cities:'',count:''},item:[{t:'text',k:'country',l:'Țara'},{t:'text',k:'cities',l:'Orașe'},{t:'text',k:'count',l:'Număr de călărășeni'}]},
@@ -515,9 +563,47 @@ function adminShell(){
   checkDraft();
 }
 function go(id){curTab=id;try{sessionStorage.setItem('adm-tab',id)}catch(e){}document.querySelectorAll('.adm-nav button').forEach(function(b){b.classList.toggle('on',b.dataset.id===id)});var s=$('.adm-sel');if(s)s.value=id;drawTab();window.scrollTo(0,0)}
+function drawMembershipApplications(root){
+  root.querySelectorAll('.application-list').forEach(function(el){el.remove()});
+  var list=h('div',{class:'application-list'});
+  root.append(list);
+  if(!adbDb){list.append(h('div',{class:'note'},'Firestore nu este disponibil.'));return}
+  list.append(h('div',{class:'note'},'Se încarcă cererile…'));
+  adbDb.collection('membershipApplications').orderBy('createdAt','desc').get().then(function(snapshot){
+    list.textContent='';
+    if(snapshot.empty){list.append(h('div',{class:'note'},'Nu există încă cereri de aderare.'));return}
+    snapshot.forEach(function(doc){
+      var d=doc.data(),card=h('div',{class:'application-card'});
+      var date=d.createdAt&&d.createdAt.toDate?d.createdAt.toDate().toLocaleString('ro-RO'):'';
+      var status=d.status||'new';
+      var statusText=status==='accepted'?'Acceptată':status==='declined'?'Respinsă':status==='review'?'În analiză':'Nouă';
+      card.append(
+        h('h3',{},esc(d.firstName+' '+d.lastName)),
+        h('div',{class:'meta'},'Telefon: '+esc(d.phone)+' · E-mail: '+esc(d.email)+(date?' · Trimisa la '+esc(date):'')),
+        h('p',{},'Localitate: '+esc(d.locality)+(d.address?' · Adresa: '+esc(d.address):'')),
+        d.birthDate?h('p',{},'Data nașterii: '+esc(d.birthDate)):null,
+        d.motivation?h('p',{},esc(d.motivation)):null,
+        h('div',{class:'actions'},h('span',{class:'st'},statusText))
+      );
+      ['review','accepted','declined'].forEach(function(next){
+        var label=next==='review'?'Marchează în analiză':next==='accepted'?'Acceptă':'Respinge';
+        card.append(h('button',{type:'button',class:'mini',onclick:function(){
+          adbDb.collection('membershipApplications').doc(doc.id).update({status:next}).then(function(){
+            drawMembershipApplications(root);
+          });
+        }},label));
+      });
+      list.append(card);
+    });
+  }).catch(function(e){
+    list.textContent='';
+    list.append(h('div',{class:'note'},'Cererea nu poate fi încărcată. Verifică regulile Firestore. '+esc(e.message||'')));
+  });
+}
 function drawTab(){
   var s=SCHEMA.filter(function(x){return x.id===curTab})[0]||SCHEMA[0],m=$('#admMain');m.textContent='';
   m.append(h('h2',{},s.label),h('p',{class:'hint'},s.hint));
+  if(curTab==='membershipApplications'){drawMembershipApplications(m);return}
   fields(DATA,s.fields,m);
 }
 function checkDraft(){
@@ -548,7 +634,22 @@ function save(){
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     updatedBy: adbUser.email||adbUser.uid
   }).then(function(){
-    b.disabled=false;setStatus('Publicat');
+    if(window.ADB_PUBLISH_WORKER){
+      adbUser.getIdToken().then(function(idToken){
+        var doc=buildDoc();
+        return fetch(window.ADB_PUBLISH_WORKER,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({idToken:idToken,html:doc})
+        }).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'GitHub publish failed')}).catch(function(){throw new Error('GitHub publish failed')})});
+      }).then(function(){
+        b.disabled=false;setStatus('Publicat pe Firestore și GitHub');
+      }).catch(function(){
+        b.disabled=false;setStatus('Firestore publicat; publicarea GitHub a eșuat.',true);
+      });
+    }else{
+      b.disabled=false;setStatus('Publicat');
+    }
   }).catch(function(e){
     b.disabled=false;
     setStatus(e&&e.code==='permission-denied'?'Nu ai permisiunea de administrare.':'Publicarea a eșuat. Verifică regulile Firebase.',true);
